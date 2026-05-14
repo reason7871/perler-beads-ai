@@ -3,11 +3,33 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 // 火山引擎 API 配置
 const VOLC_API_HOST = 'visual.volcengineapi.com';
 const VOLC_API_REGION = 'cn-north-1';
 const VOLC_API_SERVICE = 'cv';
+
+// 加载 .env.production (standalone 模式不自动加载)
+function loadEnvProduction() {
+  const possiblePaths = [
+    path.join(process.cwd(), '.env.production'),
+    path.resolve(__dirname, '../../../../.env.production'),
+  ];
+  for (const envPath of possiblePaths) {
+    try {
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf8');
+        content.split('\n').forEach(line => {
+          const m = line.match(/^([A-Za-z_]+)=(.*)$/);
+          if (m) process.env[m[1]] = m[2];
+        });
+        return;
+      }
+    } catch { /* skip */ }
+  }
+}
 
 // Uint8Array 转 hex 字符串
 function toHex(buf: Uint8Array | Buffer): string {
@@ -331,6 +353,7 @@ async function waitForTaskCompletion(taskId: string, maxAttempts = 60, intervalM
 
 // POST /api/ai-optimize
 export async function POST(request: NextRequest) {
+  loadEnvProduction();
   try {
     const { imageBase64, prompt } = await request.json();
 
