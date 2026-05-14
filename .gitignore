@@ -43,7 +43,6 @@ yarn-error.log*
 # ecs / deployment
 /data/
 /logs/
-ecosystem.config.js
 
 # typescript
 *.tsbuildinfo
