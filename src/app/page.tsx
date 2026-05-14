@@ -98,6 +98,8 @@ import DonationModal from '../components/DonationModal';
 import FocusModePreDownloadModal from '../components/FocusModePreDownloadModal';
 import ImageCropperModal from '../components/ImageCropperModal';
 import AIOptimizeModal from '../components/AIOptimizeModal';
+import IngredientBillModal from '../components/IngredientBillModal';
+import OrderManagementModal from '../components/OrderManagementModal';
 
 export default function Home() {
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
@@ -196,6 +198,12 @@ export default function Home() {
 
   // 新增：AI优化弹窗状态
   const [isAIOptimizeOpen, setIsAIOptimizeOpen] = useState<boolean>(false);
+
+  // 新增：配料单弹窗状态
+  const [isIngredientBillOpen, setIsIngredientBillOpen] = useState<boolean>(false);
+
+  // 新增：订单管理弹窗状态
+  const [isOrderManagementOpen, setIsOrderManagementOpen] = useState<boolean>(false);
 
   // 放大镜切换处理函数
   const handleToggleMagnifier = () => {
@@ -2537,8 +2545,8 @@ export default function Home() {
 
         {/* ++ HIDE Download Buttons in manual mode ++ */}
         {!isManualColoringMode && originalImageSrc && mappedPixelData && (
-            <div className="w-full md:max-w-2xl mt-4">
-              {/* 使用一个大按钮，现在所有的下载设置都通过弹窗控制 */}
+            <div className="w-full md:max-w-2xl mt-4 space-y-3">
+              {/* 图纸下载 */}
               <button
                 onClick={() => setIsDownloadSettingsOpen(true)}
                 disabled={!mappedPixelData || !gridDimensions || gridDimensions.N === 0 || gridDimensions.M === 0 || activeBeadPalette.length === 0}
@@ -2546,6 +2554,24 @@ export default function Home() {
                >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 下载拼豆图纸
+              </button>
+              {/* 配料单下载 */}
+              <button
+                onClick={() => setIsIngredientBillOpen(true)}
+                disabled={!mappedPixelData || !gridDimensions || !colorCounts || totalBeadCount === 0}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-sm sm:text-base rounded-lg hover:from-indigo-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:translate-y-[-1px] disabled:hover:translate-y-0 disabled:hover:shadow-md"
+               >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                导出配料单
+              </button>
+              {/* 订单管理 */}
+              <button
+                onClick={() => setIsOrderManagementOpen(true)}
+                disabled={!mappedPixelData || !gridDimensions || !colorCounts || totalBeadCount === 0}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm sm:text-base rounded-lg hover:from-amber-600 hover:to-orange-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:translate-y-[-1px] disabled:hover:translate-y-0 disabled:hover:shadow-md"
+               >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l2.2 7h12.4M7 13l2.2 7m0 0l2.2-7M9.6 20H18" /></svg>
+                订单管理
               </button>
             </div>
         )} {/* ++ End of HIDE Download Buttons ++ */}
@@ -2791,6 +2817,26 @@ export default function Home() {
         isOpen={isAIOptimizeOpen}
         onClose={handleAIOptimizeClose}
         onOptimized={handleAIOptimized}
+      />
+
+      {/* 配料单弹窗 */}
+      <IngredientBillModal
+        isOpen={isIngredientBillOpen}
+        onClose={() => setIsIngredientBillOpen(false)}
+        colorCounts={colorCounts}
+        totalBeads={totalBeadCount}
+        colorSystem={selectedColorSystem}
+        gridSize={{ cols: gridDimensions?.N || 0, rows: gridDimensions?.M || 0 }}
+        mappedPixelData={mappedPixelData}
+      />
+
+      {/* 订单管理弹窗 */}
+      <OrderManagementModal
+        isOpen={isOrderManagementOpen}
+        onClose={() => setIsOrderManagementOpen(false)}
+        bill={null}
+        gridData={mappedPixelData}
+        colorCounts={colorCounts}
       />
     </div>
    </>

@@ -1,0 +1,414 @@
+import { jsPDF } from 'jspdf';
+import { IngredientBill } from './ingredientEngine';
+import { MappedPixel, ColorSystem } from './pixelation';
+import { getDisplayColorKey } from './colorSystemUtils';
+
+// ── 常量 ──
+
+const A4_W = 210;
+const A4_H = 297;
+const M = 15; // margin
+const CW = A4_W - M * 2; // content width
+
+// ── 类型 ──
+
+export interface PDFExportParams {
+  bill: IngredientBill;
+  mappedPixelData: MappedPixel[][];
+  gridDimensions: { N: number; M: number };
+  colorSystem: ColorSystem;
+}
+
+// ── 辅助函数 ──
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const clean = hex.replace('#', '');
+  if (clean.length !== 6) return null;
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16),
+  };
+}
+
+function getContrastColor(hex: string): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return '#000000';
+  const luma = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+  return luma > 0.5 ? '#000000' : '#FFFFFF';
+}
+
+// ── 导出入口 ──
+
+export async function exportPDF(params: PDFExportParams): Promise<void> {
+  const { bill, mappedPixelData, gridDimensions, colorSystem } = params;
+
+  if (!mappedPixelData || !gridDimensions) {
+    throw new Error('网格数据不可用，无法生成 PDF');
+  }
+
+  // 渲染网格到 Canvas
+  const gridCanvas = renderGridToCanvas(mappedPixelData, gridDimensions, colorSystem);
+
+  // 创建 jsPDF 实例
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  drawCoverPage(doc, bill);
+  drawIngredientTable(doc, bill);
+  drawGridPages(doc, gridCanvas);
+  drawPackagingLabelsPage(doc, bill);
+
+  doc.save(`perler-beads-${bill.designId}.pdf`);
+}
+
+// ── 网格 Canvas 渲染 ──
+
+function renderGridToCanvas(
+  data: MappedPixel[][],
+  dims: { N: number; M: number },
+  cs: ColorSystem
+): HTMLCanvasElement {
+  const { N, M: rows } = dims;
+  const cellSize = Math.max(6, Math.min(18, Math.floor(1400 / Math.max(N, rows))));
+  const canvas = document.createElement('canvas');
+  canvas.width = N * cellSize;
+  canvas.height = rows * cellSize;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < N; i++) {
+      const cell = data[j][i];
+      if (!cell || cell.isExternal) continue;
+
+      ctx.fillStyle = cell.color;
+      ctx.fillRect(i * cellSize, j * cellSize, cellSize, cellSize);
+
+      if (cellSize >= 14) {
+        const key = getDisplayColorKey(cell.color, cs);
+        ctx.fillStyle = getContrastColor(cell.color);
+        ctx.font = `bold ${Math.max(5, cellSize * 0.4)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(key, i * cellSize + cellSize / 2, j * cellSize + cellSize / 2);
+      }
+    }
+  }
+
+  ctx.strokeStyle = '#CCCCCC';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= N; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * cellSize, 0);
+    ctx.lineTo(i * cellSize, rows * cellSize);
+    ctx.stroke();
+  }
+  for (let j = 0; j <= rows; j++) {
+    ctx.beginPath();
+    ctx.moveTo(0, j * cellSize);
+    ctx.lineTo(N * cellSize, j * cellSize);
+    ctx.stroke();
+  }
+
+  return canvas;
+}
+
+// ── 封面页 ──
+
+function drawCoverPage(doc: jsPDF, bill: IngredientBill): void {
+  const cx = A4_W / 2;
+
+  doc.setFillColor(248, 250, 252);
+  doc.rect(0, 0, A4_W, A4_H, 'F');
+
+  doc.setFillColor(99, 102, 241);
+  doc.rect(0, 0, A4_W, 6, 'F');
+
+  // 标题
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(26);
+  doc.setTextColor(17, 24, 39);
+  doc.text('拼豆图纸 · 配料单', cx, 55, { align: 'center' });
+
+  // 装饰线
+  doc.setDrawColor(99, 102, 241);
+  doc.setLineWidth(0.4);
+  doc.line(55, 65, A4_W - 55, 65);
+
+  // 设计编号
+  doc.setFontSize(12);
+  doc.setTextColor(107, 114, 128);
+  doc.text('设计编号', cx, 82, { align: 'center' });
+
+  doc.setFontSize(20);
+  doc.setTextColor(31, 41, 55);
+  doc.setFont('courier', 'bold');
+  doc.text(bill.designId, cx, 95, { align: 'center' });
+
+  // 分隔线
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(0.3);
+  doc.line(55, 108, A4_W - 55, 108);
+
+  // 参数信息
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(13);
+  doc.setTextColor(75, 85, 99);
+
+  const params = [
+    `网格尺寸  ${bill.gridSize.cols} × ${bill.gridSize.rows}`,
+    `总用量    ${bill.totalBeads.toLocaleString()} 粒`,
+    `颜色数    ${bill.colorCount} 种`,
+    `总重量    ${bill.totalWeight}g`,
+  ];
+
+  params.forEach((line, idx) => {
+    doc.text(line, cx, 122 + idx * 16, { align: 'center' });
+  });
+
+  // 规格参数
+  doc.setFontSize(10);
+  doc.setTextColor(156, 163, 175);
+  const specs = [
+    `拼豆规格：${bill.beadSize === 'standard' ? '标准 5mm' : '迷你 2.5mm'}`,
+    `色号系统：${bill.colorSystem}`,
+    `损耗冗余：${((bill.redundancyRatio - 1) * 100).toFixed(0)}%`,
+  ];
+  specs.forEach((line, idx) => {
+    doc.text(line, cx, 188 + idx * 12, { align: 'center' });
+  });
+
+  // 底部标识
+  doc.setFontSize(8);
+  doc.setTextColor(209, 213, 219);
+  doc.text('Generated by Perler Beads AI', cx, A4_H - 15, { align: 'center' });
+}
+
+// ── 配料明细表 ──
+
+function drawIngredientTable(doc: jsPDF, bill: IngredientBill): void {
+  doc.addPage();
+  const headerY = 25;
+
+  // 标题
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(17, 24, 39);
+  doc.text('配料明细', M, headerY);
+
+  doc.setDrawColor(99, 102, 241);
+  doc.setLineWidth(0.4);
+  doc.line(M, 30, A4_W - M, 30);
+
+  // 表格列定义
+  const cols = [
+    { x: M, w: 28, label: '色号' },
+    { x: M + 30, w: 14, label: '颜色' },
+    { x: M + 48, w: 40, label: '粒数' },
+    { x: M + 92, w: 30, label: '理论(g)' },
+    { x: M + 125, w: 30, label: '包装(g)' },
+    { x: M + 158, w: CW - 143, label: '冗余' },
+  ];
+
+  // 表头
+  doc.setFillColor(243, 244, 246);
+  doc.rect(cols[0].x, 32, CW, 8, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  cols.forEach((c) => {
+    doc.text(c.label, c.x + c.w / 2, 37.5, { align: 'center' });
+  });
+
+  doc.setFont('helvetica', 'normal');
+
+  // 数据行
+  let y = 43;
+  const rowH = 7;
+
+  bill.items.forEach((item, idx) => {
+    // 交替行背景
+    if (idx % 2 === 0) {
+      doc.setFillColor(249, 250, 251);
+      doc.rect(cols[0].x, y - 5, CW, rowH, 'F');
+    }
+
+    // 色块
+    const rgb = hexToRgb(item.hexCode);
+    if (rgb) {
+      doc.setFillColor(rgb.r, rgb.g, rgb.b);
+      doc.rect(cols[1].x + 2, y - 3, 6, 6, 'F');
+    }
+
+    // 文字
+    doc.setFontSize(7);
+    doc.setTextColor(17, 24, 39);
+    doc.text(item.colorKey, cols[0].x + cols[0].w / 2, y, { align: 'center' });
+    doc.text(item.beadCount.toString(), cols[2].x + cols[2].w / 2, y, { align: 'center' });
+    doc.text(item.beadWeight.toString(), cols[3].x + cols[3].w / 2, y, { align: 'center' });
+    doc.text(item.packWeight.toString(), cols[4].x + cols[4].w / 2, y, { align: 'center' });
+    doc.text(`${((item.redundancyRatio - 1) * 100).toFixed(0)}%`, cols[5].x + cols[5].w / 2, y, { align: 'center' });
+
+    y += rowH + 0.5;
+
+    // 分页
+    if (y > A4_H - 50) {
+      doc.addPage();
+      // 重新绘制表头
+      doc.setFillColor(243, 244, 246);
+      doc.rect(cols[0].x, 20, CW, 8, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(107, 114, 128);
+      cols.forEach((c) => {
+        doc.text(c.label, c.x + c.w / 2, 25.5, { align: 'center' });
+      });
+      doc.setFont('helvetica', 'normal');
+      y = 32;
+    }
+  });
+
+  // 汇总行
+  doc.setFont('helvetica', 'bold');
+  doc.setFillColor(238, 242, 255);
+  doc.rect(cols[0].x, y - 2, CW, rowH + 2, 'F');
+  doc.setFontSize(10);
+  doc.setTextColor(37, 54, 120);
+  doc.text(`总计：${bill.totalBeads.toLocaleString()} 粒  |  总重：${bill.totalWeight}g`, cx(), y + 4, { align: 'center' });
+
+  // 配件
+  if (bill.accessories.length > 0) {
+    let accY = y + 16;
+    doc.setFontSize(12);
+    doc.setTextColor(17, 24, 39);
+    doc.text('配件清单', M, accY);
+    accY += 8;
+
+    doc.setFontSize(9);
+    bill.accessories.forEach((acc) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(55, 65, 81);
+      doc.text(acc.name, M, accY);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`×${acc.quantity}`, A4_W - M, accY, { align: 'right' });
+      if (acc.note) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(156, 163, 175);
+        doc.text(acc.note, M + 2, accY + 4);
+        doc.setFontSize(9);
+        doc.setTextColor(55, 65, 81);
+      }
+      accY += 9;
+    });
+  }
+}
+
+function cx(): number {
+  return A4_W / 2;
+}
+
+// ── 图纸页 ──
+
+function drawGridPages(doc: jsPDF, canvas: HTMLCanvasElement): void {
+  doc.addPage();
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(17, 24, 39);
+  doc.text('图案图纸', M, 25);
+
+  doc.setDrawColor(99, 102, 241);
+  doc.setLineWidth(0.4);
+  doc.line(M, 30, A4_W - M, 30);
+
+  const imgData = canvas.toDataURL('image/png');
+  const ratio = Math.min(CW / canvas.width, (A4_H - 50) / canvas.height);
+  const w = canvas.width * ratio;
+  const h = canvas.height * ratio;
+
+  doc.addImage(imgData, 'PNG', (A4_W - w) / 2, 35, w, h);
+
+  doc.setFontSize(8);
+  doc.setTextColor(156, 163, 175);
+  doc.text(`${canvas.width} × ${canvas.height} px`, A4_W / 2, A4_H - 10, { align: 'center' });
+}
+
+// ── 包装标签页 ──
+
+function drawPackagingLabelsPage(doc: jsPDF, bill: IngredientBill): void {
+  doc.addPage();
+
+  doc.setFillColor(99, 102, 241);
+  doc.rect(0, 0, A4_W, 4, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(17, 24, 39);
+  doc.text(`包装标签  |  ${bill.designId}`, M, 18);
+
+  doc.setDrawColor(99, 102, 241);
+  doc.setLineWidth(0.3);
+  doc.line(M, 22, A4_W - M, 22);
+
+  const lw = (CW - 6) / 2;
+  const lh = 22;
+  let col = 0;
+  let row = 0;
+
+  bill.items.forEach((item) => {
+    const x = M + col * (lw + 3);
+    const y = 28 + row * (lh + 2);
+
+    // 边框
+    doc.setDrawColor(209, 213, 219);
+    doc.setLineWidth(0.3);
+    doc.rect(x, y, lw, lh);
+
+    // 裁剪虚线
+    doc.setDrawColor(229, 231, 235);
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(x, y + lh, x + lw, y + lh);
+    doc.setLineDashPattern([], 0);
+
+    // 色号
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(17, 24, 39);
+    doc.text(`${item.colorKey}`, x + 3, y + 6);
+
+    // Hex
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(156, 163, 175);
+    doc.text(item.hexCode, x + 3, y + 11);
+
+    // 用量
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(55, 65, 81);
+    doc.text(`${item.beadCount}粒  /  ${item.packWeight}g`, x + 3, y + 17);
+
+    // 排版
+    col++;
+    if (col >= 2) {
+      col = 0;
+      row++;
+    }
+    if (y + lh > A4_H - 25 && col === 0) {
+      // 新页
+      doc.addPage();
+      doc.setFillColor(99, 102, 241);
+      doc.rect(0, 0, A4_W, 4, 'F');
+      row = 0;
+    }
+  });
+}

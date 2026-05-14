@@ -11,7 +11,9 @@
     "pages:deploy": "npx wrangler pages deploy out"
   },
   "dependencies": {
+    "better-sqlite3": "^11.0.0",
     "cropperjs": "^2.1.0",
+    "jspdf": "^4.2.1",
     "next": "15.3.6",
     "react": "^19.0.0",
     "react-cropper": "^2.3.3",

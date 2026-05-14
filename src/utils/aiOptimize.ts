@@ -1,6 +1,6 @@
-// AI图片优化工具函数
+// AI 图片优化工具函数
 
-const DEFAULT_PROMPT = '图片修改为：chibi画风，背景白底。pixel art style, 16-bit, retro game aesthetic, sharp focus, high contrast, clean lines, detailed pixel art, masterpiece, best quality';
+const DEFAULT_PROMPT = '图片修改为：chibi 画风，背景白底。pixel art style, 16-bit, retro game aesthetic, sharp focus, high contrast, clean lines, detailed pixel art, masterpiece, best quality';
 
 export interface AIOptimizeOptions {
   customPrompt?: string;
@@ -45,16 +45,16 @@ function resizeImage(img: HTMLImageElement, maxWidth: number = 2048, maxHeight: 
 }
 
 /**
- * 将Canvas转换为Base64格式，控制文件大小
+ * 将 Canvas 转换为 Base64 格式，控制文件大小
  */
 function canvasToBase64(canvas: HTMLCanvasElement, maxSizeKB: number = 4096): string {
-  // 首先尝试PNG格式（无损）
+  // 首先尝试 PNG 格式（无损）
   let base64 = canvas.toDataURL('image/png');
   let sizeKB = Math.round((base64.length * 3) / 4 / 1024);
 
   console.log('Original image size:', sizeKB, 'KB');
 
-  // 如果PNG太大，尝试JPEG格式并调整质量
+  // 如果 PNG 太大，尝试 JPEG 格式并调整质量
   if (sizeKB > maxSizeKB) {
     let quality = 0.9;
     while (sizeKB > maxSizeKB && quality > 0.3) {
@@ -94,7 +94,7 @@ function canvasToBase64(canvas: HTMLCanvasElement, maxSizeKB: number = 4096): st
 }
 
 /**
- * 将图片转换为Base64格式
+ * 将图片转换为 Base64 格式
  */
 export function imageToBase64(imageSrc: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -108,7 +108,7 @@ export function imageToBase64(imageSrc: string): Promise<string> {
         // 压缩图片
         const canvas = resizeImage(img, 2048, 2048);
 
-        // 转换为base64，控制大小在4MB以内
+        // 转换为 base64，控制大小在 4MB 以内
         const base64 = canvasToBase64(canvas, 4096);
 
         resolve(base64);
@@ -126,7 +126,7 @@ export function imageToBase64(imageSrc: string): Promise<string> {
 }
 
 /**
- * 调用AI优化API
+ * 调用 AI 优化 API
  */
 export async function optimizeImageWithAI(
   imageSrc: string,
@@ -138,12 +138,12 @@ export async function optimizeImageWithAI(
     // 更新进度
     onProgress?.(10);
 
-    // 将图片转换为base64
+    // 将图片转换为 base64
     const base64Image = await imageToBase64(imageSrc);
 
     onProgress?.(30);
 
-    // 调用API
+    // 调用 API
     const response = await fetch('/api/ai-optimize', {
       method: 'POST',
       headers: {
@@ -157,16 +157,23 @@ export async function optimizeImageWithAI(
 
     onProgress?.(80);
 
+    // Clone response first so we can read body multiple times if needed
+    const errorResponse = response.clone();
+
     if (!response.ok) {
-      // 尝试解析JSON错误，如果失败则使用文本
+      // 尝试解析 JSON 错误，如果失败则使用文本
       let errorMessage: string;
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || `API request failed: ${response.status}`;
       } catch {
-        // 如果不是JSON，尝试获取文本
-        const errorText = await response.text();
-        errorMessage = errorText || `API request failed: ${response.status}`;
+        // 如果不是 JSON，尝试获取文本
+        try {
+          const errorText = await errorResponse.text();
+          errorMessage = errorText || `API request failed: ${response.status}`;
+        } catch {
+          errorMessage = `API request failed: ${response.status}`;
+        }
       }
       throw new Error(errorMessage);
     }
@@ -194,7 +201,7 @@ export async function optimizeImageWithAI(
 }
 
 /**
- * 下载远程图片并转换为DataURL
+ * 下载远程图片并转换为 DataURL
  */
 export async function downloadImageAsDataURL(imageUrl: string): Promise<string> {
   const response = await fetch(imageUrl);

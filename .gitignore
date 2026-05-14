@@ -40,6 +40,11 @@ yarn-error.log*
 .open-next/
 .dev.vars
 
+# ecs / deployment
+/data/
+/logs/
+ecosystem.config.js
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
