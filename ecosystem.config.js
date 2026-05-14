@@ -1,11 +1,26 @@
+// Load .env.production manually (standalone mode doesn't auto-load it)
+const fs = require('fs');
+const path = require('path');
+try {
+  const envPath = path.join(__dirname, '.env.production');
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach(line => {
+    const match = line.match(/^([A-Za-z_]+)=(.*)$/);
+    if (match) {
+      process.env[match[1]] = match[2];
+    }
+  });
+} catch (e) {
+  // .env.production not found, skip
+}
+
 module.exports = {
   apps: [
     {
       name: 'perler-beads',
-      script: 'npm',
-      args: 'start',
-      instances: 'max', // 使用所有 CPU 核心
-      exec_mode: 'cluster',
+      script: '.next/standalone/server.js',
+      instances: 1,
+      exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
         PORT: 3000
