@@ -136,7 +136,8 @@ async function generateSignature(
   const kRegion = hmac(kDate, VOLC_API_REGION);
   const kService = hmac(kRegion, VOLC_API_SERVICE);
   const kSigning = hmac(kService, 'request');
-  const signature = toHex(kSigning);
+  const kSignature = hmac(kSigning, stringToSign);
+  const signature = toHex(kSignature);
 
   return [
     'HMAC-SHA256',
