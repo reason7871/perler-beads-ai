@@ -116,7 +116,7 @@ async function generateSignature(
   const datetime = headers['X-Date'] || headers['x-date'];
   const date = datetime.substring(0, 8);
 
-  const [signedHeaders, canonicalHeaders] = getSignHeaders(headers);
+  const [signedHeaders, canonicalHeaders] = getSignHeaders(headers, ['content-type']);
   const emptyBodyHash = sha256('');
   const canonicalRequest = [
     method.toUpperCase(),
@@ -131,6 +131,14 @@ async function generateSignature(
   const canonicalRequestHash = sha256(canonicalRequest);
   const stringToSign = ['HMAC-SHA256', datetime, credentialScope, canonicalRequestHash].join('\n');
 
+  // DEBUG
+  console.log('[SIG] signedHeaders:', signedHeaders);
+  console.log('[SIG] canonicalHeaders:', JSON.stringify(canonicalHeaders));
+  console.log('[SIG] canonicalRequest:', JSON.stringify(canonicalRequest));
+  console.log('[SIG] stringToSign:', JSON.stringify(stringToSign));
+  console.log('[SIG] accessKeyId:', accessKeyId);
+  console.log('[SIG] secretKey:', secretAccessKey);
+
   const secretKey = Buffer.from(secretAccessKey);
   const kDate = hmac(secretKey, date);
   const kRegion = hmac(kDate, VOLC_API_REGION);
@@ -138,6 +146,9 @@ async function generateSignature(
   const kSigning = hmac(kService, 'request');
   const kSignature = hmac(kSigning, stringToSign);
   const signature = toHex(kSignature);
+
+  console.log('[SIG] kSigning:', toHex(kSigning));
+  console.log('[SIG] signature:', signature);
 
   return [
     'HMAC-SHA256',
