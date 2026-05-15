@@ -26,12 +26,10 @@ function loadEnvProduction() {
           const m = line.match(/^([A-Za-z_]+)=(.*)$/);
           if (m) process.env[m[1]] = m[2];
         });
-        console.log('[DEBUG] Loaded env from:', envPath);
         return;
       }
     } catch { /* skip */ }
   }
-  console.log('[DEBUG] Could not find .env.production, __dirname:', __dirname);
 }
 
 // Uint8Array 转 hex 字符串
@@ -116,7 +114,7 @@ async function generateSignature(
   const datetime = headers['X-Date'] || headers['x-date'];
   const date = datetime.substring(0, 8);
 
-  const [signedHeaders, canonicalHeaders] = getSignHeaders(headers, ['content-type']);
+  const [signedHeaders, canonicalHeaders] = getSignHeaders(headers);
   const emptyBodyHash = sha256('');
   const canonicalRequest = [
     method.toUpperCase(),
@@ -369,14 +367,6 @@ async function waitForTaskCompletion(taskId: string, maxAttempts = 60, intervalM
 // POST /api/ai-optimize
 export async function POST(request: NextRequest) {
   loadEnvProduction();
-
-  // Debug: verify env loaded correctly
-  const akId = process.env.VOLC_ACCESS_KEY_ID;
-  const skKey = process.env.VOLC_SECRET_ACCESS_KEY;
-  console.log('[DEBUG] VOLC_ACCESS_KEY_ID:', akId ? `${akId.substring(0, 8)}...(${akId.length})` : 'NOT SET');
-  console.log('[DEBUG] VOLC_SECRET_ACCESS_KEY:', skKey ? `${skKey.substring(0, 8)}...(${skKey.length})` : 'NOT SET');
-  console.log('[DEBUG] CWD:', process.cwd());
-
   try {
     const { imageBase64, prompt } = await request.json();
 
