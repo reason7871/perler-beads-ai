@@ -15,6 +15,7 @@ const VOLC_API_SERVICE = 'cv';
 function loadEnvProduction() {
   const possiblePaths = [
     path.join(process.cwd(), '.env.production'),
+    path.resolve(__dirname, '../../../../../.env.production'),
     path.resolve(__dirname, '../../../../.env.production'),
   ];
   for (const envPath of possiblePaths) {
@@ -25,10 +26,12 @@ function loadEnvProduction() {
           const m = line.match(/^([A-Za-z_]+)=(.*)$/);
           if (m) process.env[m[1]] = m[2];
         });
+        console.log('[DEBUG] Loaded env from:', envPath);
         return;
       }
     } catch { /* skip */ }
   }
+  console.log('[DEBUG] Could not find .env.production, __dirname:', __dirname);
 }
 
 // Uint8Array 转 hex 字符串
