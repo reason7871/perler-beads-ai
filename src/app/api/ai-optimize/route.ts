@@ -354,6 +354,14 @@ async function waitForTaskCompletion(taskId: string, maxAttempts = 60, intervalM
 // POST /api/ai-optimize
 export async function POST(request: NextRequest) {
   loadEnvProduction();
+
+  // Debug: verify env loaded correctly
+  const akId = process.env.VOLC_ACCESS_KEY_ID;
+  const skKey = process.env.VOLC_SECRET_ACCESS_KEY;
+  console.log('[DEBUG] VOLC_ACCESS_KEY_ID:', akId ? `${akId.substring(0, 8)}...(${akId.length})` : 'NOT SET');
+  console.log('[DEBUG] VOLC_SECRET_ACCESS_KEY:', skKey ? `${skKey.substring(0, 8)}...(${skKey.length})` : 'NOT SET');
+  console.log('[DEBUG] CWD:', process.cwd());
+
   try {
     const { imageBase64, prompt } = await request.json();
 
